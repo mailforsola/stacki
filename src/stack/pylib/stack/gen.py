@@ -852,7 +852,433 @@ class Generator_redhat(Generator):
 		
 		return list
 
+class MainNodeFilter_ubuntu(NodeFilter):
+	"""
+	This class either accepts or reject tags
+	from the node XML files. All tags are under
+	the <main>*</main> tags.
+	Each and every one of these tags needs to
+	have a handler for them in the Generator
+	class.
+	"""
+	def acceptNode(self, node):
 
+		if node.nodeName not in [
+			'kickstart',
+			'main', 	# <main><*></main>
+			'bootloader',
+			'url',
+			'clearpart', 	# Clears the disk partitions
+			'part', 	# Partition information
+			'size',
+			'filesys',
+			'slice',
+			'locale',
+			'timezone',
+			'timeserver',
+			'terminal',
+			'name_service',
+			'domain_name',
+			'name_server',
+			'nfs4_domain',
+			'search',
+			'rootpw', 	# root password
+			'network',	# specify network configuration
+			'interface',	# network interface
+			'hostname',	# hostname
+			'ip_address',	# IP Address
+			'netmask',	# Netmask information
+			'default_route',# Default Gateway
+			'dhcp',		# to DHCP or not to DHCP
+			'protocol_ipv6',# to IPv6 or not to IPv6
+			'keyboard',	# Keyboard Config
+			'pointer',	# Mouse config
+			'security_policy', # Security config
+			'auto_reg',	# Auto Registration
+			'type',	# Auto Registration
+			]:
+			return self.FILTER_SKIP
+			
+		if not self.isCorrectCond(node):
+			return self.FILTER_SKIP
+
+		return self.FILTER_ACCEPT
+
+class OtherNodeFilter_ubuntu(NodeFilter):
+	"""
+	This class accepts tags that define the
+	pre section, post section and the packages
+	section in the node XML files. The handlers
+	for these are present in the Generator class.
+	"""
+	def acceptNode(self, node):
+		if node.nodeName == 'kickstart':
+			return self.FILTER_ACCEPT
+
+		if node.nodeName not in [
+			'cluster',
+			'package',
+			'patch',
+			'pre',
+			'post',
+			]:
+			return self.FILTER_SKIP
+
+		if not self.isCorrectCond(node):
+			return self.FILTER_SKIP
+			
+		return self.FILTER_ACCEPT
+
+class Generator_ubuntu(Generator):
+
+	def __init__(self):
+		Generator.__init__(self)	
+		self.ks                 = {}
+		self.ks['order']	= []
+		self.ks['main']         = []
+		self.ks['packages']     = []
+		self.ks['finish']	= []
+		self.ks['pre']          = []
+		self.ks['post']         = []
+
+		self.log = '/var/log/stack-install.log'
+	
+	##
+	## Parsing Section
+	##
+	
+	def parse(self, xml_string):
+		import cStringIO
+		xml_buf = cStringIO.StringIO(xml_string)
+		doc = xml.dom.ext.reader.Sax2.FromXmlStream(xml_buf)
+		filter = MainNodeFilter_ubuntu(self.attrs)
+		iter = doc.createTreeWalker(doc, filter.SHOW_ELEMENT,
+			filter, 0)
+		node = iter.nextNode()
+		while node:
+
+			if node.nodeName == 'kickstart':
+				self.handle_kickstart(node)
+			elif node.nodeName == 'main':
+				#print ('printing node name in main while 2 %s' ,node.nodeName)
+				child = iter.firstChild()
+				while child:
+					self.handle_mainChild(child)
+					child = iter.nextSibling()
+			node = iter.nextNode()
+
+		self.handle_main_netcfg()
+		self.handle_clock_setup()
+		self.handle_main_pkgsel()
+		self.handle_main_tasksel()
+		self.handle_main_aptsetup()
+		self.handle_main_live_installer()
+		self.handle_cleanup_tasks()
+	
+		filter = OtherNodeFilter_ubuntu(self.attrs)
+		iter = doc.createTreeWalker(doc, filter.SHOW_ELEMENT,
+			filter, 0)
+		node = iter.nextNode()
+		while node:
+			if node.nodeName != 'kickstart':
+				self.order(node)
+				eval('self.handle_%s(node)' % (node.nodeName))
+			node = iter.nextNode()
+
+
+	# <kickstart>
+	
+	def handle_kickstart(self, node):
+		# pull out the attr to handle generic conditionals
+		# this replaces the old arch/os logic but still
+		# supports the old syntax
+
+		if node.attributes:
+			attrs = node.attributes.getNamedItem((None, 'attrs'))
+			if attrs:
+				dict = eval(attrs.value)
+				for (k,v) in dict.items():
+					self.attrs[k] = v
+
+	def handle_mainChild(self, node):
+		attr = node.attributes
+		roll, nodefile, color = self.get_context(node)
+		try:
+			eval('self.handle_main_%s(node)' % node.nodeName)
+		except AttributeError:
+			self.ks['main'].append(('%s %s' % (node.nodeName,
+				self.getChildText(node)), roll, nodefile, color))
+
+	def handle_main_tasksel(self):
+		self.ks['main'].append('d-i tasksel tasksel/first select server')
+
+	def handle_cleanup_tasks(self):
+		self.ks['finish'].append('d-i grub-installer/only_debian boolean true')
+		self.ks['finish'].append('d-i finish-install/reboot_in_progress note')
+
+	def handle_main_aptsetup(self):
+		ks_addr = self.attrs['Kickstart_PrivateAddress']
+		self.ks['main'].append('d-i apt-setup/security_protocol string http')
+		self.ks['main'].append('d-i apt-setup/security_host string ' + ks_addr)
+		self.ks['main'].append('d-i apt-setup/security_path string /install/ubuntu')
+
+	def handle_main_live_installer(self):
+		ks_addr = self.attrs['Kickstart_PrivateAddress']
+		self.ks['main'].append(('d-i live-installer/net-image string ' \
+			'http://%s/install/ubuntu/install/filesystem.squashfs' % ks_addr))
+	
+	def handle_main_pkgsel(self):
+		self.ks['main'].append('d-i pkgsel/update-policy select none')
+
+	def handle_main_netcfg(self):
+		ks_addr = self.attrs['Kickstart_PrivateAddress']
+		self.ks['main'].append('d-i netcfg/choose_interface select auto')
+		self.ks['main'].append('d-i netcfg/get_nameservers string ' +  str(ks_addr))
+		self.ks['main'].append('d-i netcfg/get_hostname string unassigned-hostname')
+		self.ks['main'].append('d-i netcfg/get_hostname string unassigned-domain')
+
+	def handle_clock_setup(self):
+		ks_addr = self.attrs['Kickstart_PrivateAddress']
+		self.ks['main'].append('d-i clock-setup/utc boolean true')
+		self.ks['main'].append('d-i clock-setup/ntp boolean true')
+		self.ks['main'].append('d-i clock-setup/ntp-server string ' + str(ks_addr))
+
+	def handle_main_rootpw(self, node):
+		ks_pwd = self.attrs['Kickstart_PrivateRootPassword']
+		self.ks['main'].append('d-i passwd/root-login boolean true')
+		self.ks['main'].append('d-i passwd/root-password-crypted password ' + str(ks_pwd))
+		self.ks['main'].append('d-i passwd/make-user boolean true')
+		self.ks['main'].append('d-i passwd/user-fullname string Ubuntu User')
+		self.ks['main'].append('d-i passwd/username string ubuntu')
+		self.ks['main'].append('d-i passwd/user-password-crypted password ' + str(ks_pwd))
+		self.ks['main'].append('d-i passwd/user-uid string')
+		self.ks['main'].append('d-i user-setup/allow-password-weak  boolean false')
+		self.ks['main'].append('d-i user-setup/encrypt-home boolean false')
+
+	def handle_main_url(self, node):
+		ks_addr = self.attrs['Kickstart_PrivateAddress']
+		self.ks['main'].append('d-i mirror/country string manual')
+		self.ks['main'].append('d-i mirror/http/hostname string ' + str(ks_addr))
+		self.ks['main'].append('d-i mirror/http/directory string /install/ubuntu')
+		self.ks['main'].append('d-i mirror/http/proxy string')
+		self.ks['main'].append('d-i mirror/codename string trusty')
+		self.ks['main'].append('d-i mirror/suite string trusty')
+		self.ks['main'].append('d-i mirror/udeb/suite string trusty')
+		print('in main url')
+
+	def get_context(self, node):
+		# This function returns the rollname,
+		# and nodefile of the node currently being
+		# processed
+		attr = node.attributes
+		roll = None
+		nodefile = None
+		color = None
+		if attr.getNamedItem((None, 'roll')):
+			roll = attr.getNamedItem((None, 'roll')).value
+		if attr.getNamedItem((None, 'file')):
+			nodefile = attr.getNamedItem((None, 'file')).value
+		if attr.getNamedItem((None, 'color')):
+			color = attr.getNamedItem((None, 'color')).value
+		return (roll, nodefile, color)
+	
+	# <main>
+	#	<lilo>
+	# </main>
+	
+	def handle_main_bootloader(self, node):
+		(roll, nodefile, color) = self.get_context(node)
+		self.ks['main'].append('d-i debconf/priority select critical')
+		self.ks['main'].append('d-i auto-install/enabled boolean true')
+		return
+
+	# <main>
+	#	<lang>
+	# </main>
+
+	def handle_main_lang(self, node):
+		(roll, nodefile, color) = self.get_context(node)
+		self.ks['main'].append(('d-i debian-installer/locale string %s' %
+			self.getChildText(node), roll, nodefile, color))
+		return
+
+	# <main>
+	#	<keyboard>
+	# </main>
+
+	def handle_main_keyboard(self, node):
+		(roll, nodefile, color) = self.get_context(node)
+		self.ks['main'].append(('d-i keyboard_configuration/layoutcode string %s' %
+			self.getChildText(node), roll, nodefile, color))
+		return
+
+	# <main>
+	#	<timezone>
+	# </main>
+
+	def handle_main_timezone(self, node):
+		(roll, nodefile, color) = self.get_context(node)
+		self.ks['main'].append(('d-i time/zone string %s' %
+			self.getChildText(node), roll, nodefile, color))
+		return		
+	
+	# <package>
+
+	def handle_package(self, node):
+		rpm = self.getChildText(node).strip()
+		self.ks['packages'].append('d-i pkgsel/include string ' + rpm)
+
+	# <pre>
+	
+	def handle_pre(self, node):
+		attr = node.attributes
+		(roll, nodefile, color) = self.get_context(node)
+		# Parse the interpreter attribute
+		if attr.getNamedItem((None, 'interpreter')):
+			interpreter = '--interpreter ' + \
+				attr.getNamedItem((None, 'interpreter')).value
+		else:
+			interpreter = ''
+		# Parse any additional arguments to the interpreter
+		# or to the post section
+		if attr.getNamedItem((None, 'arg')):
+			arg = attr.getNamedItem((None, 'arg')).value
+		else:
+			arg = ''
+		list = []
+		list.append(string.strip(string.join([interpreter, arg])))
+		list.append(self.getChildText(node))
+		self.ks['pre'].append((list, roll, nodefile, color))
+
+	# <post>
+	
+	def handle_post(self, node):
+		attr = node.attributes
+		(roll, nodefile, color) = self.get_context(node)
+		# Parse the interpreter attribute
+		if attr.getNamedItem((None, 'interpreter')):
+			interpreter = '--interpreter ' + \
+				attr.getNamedItem((None, 'interpreter')).value
+		else:
+			interpreter = ''
+		# Parse any additional arguments to the interpreter
+		# or to the post section
+		if attr.getNamedItem((None, 'arg')):
+			arg = attr.getNamedItem((None, 'arg')).value
+		else:
+			arg = ''
+		list = []
+		# Add the interpreter and args to the %post line
+		list.append(string.strip(string.join([interpreter, arg])))
+		list.append(self.getChildText(node))
+		self.ks['post'].append((list, roll, nodefile, color))
+		
+	# <boot>
+	def handle_boot(self, node):
+		(roll, nodefile, color) = self.get_context(node)
+		attr = node.attributes
+		if attr.getNamedItem((None, 'order')):
+			order = attr.getNamedItem((None, 'order')).value
+		else:
+			order = 'pre'
+
+		self.ks['boot-%s' % order].append(
+			(self.getChildText(node), roll, nodefile, color))
+
+	def generate_main(self):
+		list = []
+		list.append('')
+		list += self.ks['main']
+		return list
+
+	def generate_packages(self):
+		list = []
+		list.append('')
+		list += self.ks['packages']
+		return list
+
+	def generate_finish(self):
+		list = []
+		list.append('')
+		list += self.ks['finish']
+		return list
+
+	def generate_pre(self):
+		pre_list = []
+		pre_list.append('')
+
+		for list in self.ks['pre']:
+			(args, text) = list[0][0], list[0][1]
+			roll = list[1]
+			nodefile = list[2]
+			color = list[3]
+			pre_list.append(('%%pre --log=/tmp/ks-pre.log %s' %
+				args, roll, nodefile, color))
+			pre_list.append((text + '\n',roll, nodefile, color))
+			pre_list.append(('%end'))
+			
+		return pre_list
+
+	def generate_post(self):
+		post_list = []
+		post_list.append(('', None, None))
+
+		for list in self.ks['post']:
+			(args, text) = list[0][0], list[0][1]
+			roll = list[1]
+			nodefile = list[2]
+			color = list[3]
+			log = self.log
+			try:
+				i = args.index('--nochroot')
+				if i >= 0:
+					log = '/mnt/sysimage/%s' % self.log
+			except:
+				pass
+			post_list.append(('%%post --log=%s %s' %
+				(log, args), roll, nodefile, color))
+			post_list.append((text + '\n',roll, nodefile, color))
+			post_list.append(('%end'))
+			
+		return post_list
+
+
+	def generate_boot(self):
+		list = []
+		list.append('')
+		list.append('%%post --log=%s' % self.log)
+		
+		# Boot PRE
+		#	- check in/out all modified files
+		#	- write the <boot order="pre"> text
+		
+		list.append('')
+		list.append("cat >> /etc/sysconfig/stack-pre << '__EOF__'")
+
+		for (file, (owner, perms)) in self.rcsFiles.items():
+			s = self.rcsEnd(file, owner, perms)
+			list.append(s)
+
+		for l in self.ks['boot-pre']:
+			list.append(l)
+
+		list.append('__EOF__')
+
+		# Boot POST
+		#	- write the <boot order="post"> text
+		
+		list.append('')
+		list.append("cat >> /etc/sysconfig/stack-post << '__EOF__'")
+
+		for l in self.ks['boot-post']:
+			list.append(l)
+
+		list.append('__EOF__')
+		list.append('')
+
+		list.append('%end')
+		
+		return list
 		
 class MainNodeFilter_sunos(NodeFilter):
 	"""
