@@ -22,6 +22,6 @@ All rights reserved. Rocks(r) v5.4 www.rocksclusters.org
 mkdir -p /root/.ssh;
 chmod 600 /root/.ssh/authorized_keys;
 chmod 700 /root/.ssh;
-/bin/echo -ne <eval shell="sh">cat /root/.ssh/id_rsa.pub</eval> &gt;&gt;/root/.ssh/authorized_keys;
+<!--/bin/echo -ne <eval shell="sh">cat /root/.ssh/id_rsa.pub</eval> &gt;&gt;/root/.ssh/authorized_keys;-->
 </late_command>
 </kickstart> 
