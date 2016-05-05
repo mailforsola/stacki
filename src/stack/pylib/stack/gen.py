@@ -866,36 +866,27 @@ class MainNodeFilter_ubuntu(NodeFilter):
 		if node.nodeName not in [
 			'kickstart',
 			'main', 	# <main><*></main>
-			'bootloader',
-			'url',
-			'clearpart', 	# Clears the disk partitions
-			'part', 	# Partition information
-			'size',
-			'filesys',
-			'slice',
-			'locale',
+			'debian-installer',
+			'auto-install',
+			'time',
+			'console-setup',
+			'keyboard-configuration',
+			'debconf',
+			'mirror',
+			'apt-setup',
+			'pkgsel',
+			'live-installer',
+			'netcfg',
+			'clock-setup',
+			'user-setup',
+			'passwd',
+			'partman',
+			'partman-auto',
+			'partman-lvm',
+			'partman-auto-lvm',
+			'pkgsel',
+			'tasksel',
 			'timezone',
-			'timeserver',
-			'terminal',
-			'name_service',
-			'domain_name',
-			'name_server',
-			'nfs4_domain',
-			'search',
-			'rootpw', 	# root password
-			'network',	# specify network configuration
-			'interface',	# network interface
-			'hostname',	# hostname
-			'ip_address',	# IP Address
-			'netmask',	# Netmask information
-			'default_route',# Default Gateway
-			'dhcp',		# to DHCP or not to DHCP
-			'protocol_ipv6',# to IPv6 or not to IPv6
-			'keyboard',	# Keyboard Config
-			'pointer',	# Mouse config
-			'security_policy', # Security config
-			'auto_reg',	# Auto Registration
-			'type',	# Auto Registration
 			]:
 			return self.FILTER_SKIP
 			
@@ -920,6 +911,9 @@ class OtherNodeFilter_ubuntu(NodeFilter):
 			'package',
 			'patch',
 			'pre',
+			'late_command',
+			'grub_installer',
+			'finish_install',
 			'post',
 			]:
 			return self.FILTER_SKIP
@@ -940,7 +934,7 @@ class Generator_ubuntu(Generator):
 		self.ks['finish']	= []
 		self.ks['pre']          = []
 		self.ks['post']         = []
-
+		self.finish_section     = 0
 		self.log = '/var/log/stack-install.log'
 	
 	##
@@ -967,14 +961,6 @@ class Generator_ubuntu(Generator):
 					child = iter.nextSibling()
 			node = iter.nextNode()
 
-		self.handle_main_netcfg()
-		self.handle_clock_setup()
-		self.handle_main_pkgsel()
-		self.handle_main_tasksel()
-		self.handle_main_aptsetup()
-		self.handle_main_live_installer()
-		self.handle_cleanup_tasks()
-	
 		filter = OtherNodeFilter_ubuntu(self.attrs)
 		iter = doc.createTreeWalker(doc, filter.SHOW_ELEMENT,
 			filter, 0)
@@ -1003,69 +989,31 @@ class Generator_ubuntu(Generator):
 	def handle_mainChild(self, node):
 		attr = node.attributes
 		roll, nodefile, color = self.get_context(node)
-		try:
-			eval('self.handle_main_%s(node)' % node.nodeName)
-		except AttributeError:
-			self.ks['main'].append(('%s %s' % (node.nodeName,
-				self.getChildText(node)), roll, nodefile, color))
-
-	def handle_main_tasksel(self):
-		self.ks['main'].append('d-i tasksel tasksel/first select server')
-
-	def handle_cleanup_tasks(self):
-		self.ks['finish'].append('d-i grub-installer/only_debian boolean true')
-		self.ks['finish'].append('d-i finish-install/reboot_in_progress note')
-
-	def handle_main_aptsetup(self):
-		ks_addr = self.attrs['Kickstart_PrivateAddress']
-		self.ks['main'].append('d-i apt-setup/security_protocol string http')
-		self.ks['main'].append('d-i apt-setup/security_host string ' + ks_addr)
-		self.ks['main'].append('d-i apt-setup/security_path string /install/ubuntu')
-
-	def handle_main_live_installer(self):
-		ks_addr = self.attrs['Kickstart_PrivateAddress']
-		self.ks['main'].append(('d-i live-installer/net-image string ' \
-			'http://%s/install/ubuntu/install/filesystem.squashfs' % ks_addr))
+		if 'tasksel' in node.nodeName:
+			self.ks['main'].append('%s %s' % (node.nodeName, self.getChildText(node)))
+		else:
+			self.ks['main'].append('d-i %s/%s' % (node.nodeName, self.getChildText(node)))
 	
-	def handle_main_pkgsel(self):
-		self.ks['main'].append('d-i pkgsel/update-policy select none')
+	def handle_late_command(self, node):
+		txt = self.getChildText(node)
+		commands = txt.split(";")
+		
+		for command in commands:
+			command = command.strip()
+			if not command:
+				continue
+			if not self.ks['post']:
+				self.ks['post'].append('d-i preseed/%s string in-target %s;\n' % (node.nodeName.strip(), command))
+			else:
+				self.ks['post'].append('in-target %s;\n' % command)
 
-	def handle_main_netcfg(self):
-		ks_addr = self.attrs['Kickstart_PrivateAddress']
-		self.ks['main'].append('d-i netcfg/choose_interface select auto')
-		self.ks['main'].append('d-i netcfg/get_nameservers string ' +  str(ks_addr))
-		self.ks['main'].append('d-i netcfg/get_hostname string unassigned-hostname')
-		self.ks['main'].append('d-i netcfg/get_hostname string unassigned-domain')
+	def handle_grub_installer(self, node):
+		self.ks['finish'].append('d-i grub-installer/%s' % self.getChildText(node))
 
-	def handle_clock_setup(self):
-		ks_addr = self.attrs['Kickstart_PrivateAddress']
-		self.ks['main'].append('d-i clock-setup/utc boolean true')
-		self.ks['main'].append('d-i clock-setup/ntp boolean true')
-		self.ks['main'].append('d-i clock-setup/ntp-server string ' + str(ks_addr))
+	def handle_finish_install(self, node):
+		self.ks['finish'].append('d-i finish-install/%s' % self.getChildText(node))
 
-	def handle_main_rootpw(self, node):
-		ks_pwd = self.attrs['Kickstart_PrivateRootPassword']
-		self.ks['main'].append('d-i passwd/root-login boolean true')
-		self.ks['main'].append('d-i passwd/root-password-crypted password ' + str(ks_pwd))
-		self.ks['main'].append('d-i passwd/make-user boolean true')
-		self.ks['main'].append('d-i passwd/user-fullname string Ubuntu User')
-		self.ks['main'].append('d-i passwd/username string ubuntu')
-		self.ks['main'].append('d-i passwd/user-password-crypted password ' + str(ks_pwd))
-		self.ks['main'].append('d-i passwd/user-uid string')
-		self.ks['main'].append('d-i user-setup/allow-password-weak  boolean false')
-		self.ks['main'].append('d-i user-setup/encrypt-home boolean false')
-
-	def handle_main_url(self, node):
-		ks_addr = self.attrs['Kickstart_PrivateAddress']
-		self.ks['main'].append('d-i mirror/country string manual')
-		self.ks['main'].append('d-i mirror/http/hostname string ' + str(ks_addr))
-		self.ks['main'].append('d-i mirror/http/directory string /install/ubuntu')
-		self.ks['main'].append('d-i mirror/http/proxy string')
-		self.ks['main'].append('d-i mirror/codename string trusty')
-		self.ks['main'].append('d-i mirror/suite string trusty')
-		self.ks['main'].append('d-i mirror/udeb/suite string trusty')
-		print('in main url')
-
+		
 	def get_context(self, node):
 		# This function returns the rollname,
 		# and nodefile of the node currently being
@@ -1082,108 +1030,72 @@ class Generator_ubuntu(Generator):
 			color = attr.getNamedItem((None, 'color')).value
 		return (roll, nodefile, color)
 	
-	# <main>
-	#	<lilo>
-	# </main>
-	
-	def handle_main_bootloader(self, node):
-		(roll, nodefile, color) = self.get_context(node)
-		self.ks['main'].append('d-i debconf/priority select critical')
-		self.ks['main'].append('d-i auto-install/enabled boolean true')
-		return
-
-	# <main>
-	#	<lang>
-	# </main>
-
-	def handle_main_lang(self, node):
-		(roll, nodefile, color) = self.get_context(node)
-		self.ks['main'].append(('d-i debian-installer/locale string %s' %
-			self.getChildText(node), roll, nodefile, color))
-		return
-
-	# <main>
-	#	<keyboard>
-	# </main>
-
-	def handle_main_keyboard(self, node):
-		(roll, nodefile, color) = self.get_context(node)
-		self.ks['main'].append(('d-i keyboard_configuration/layoutcode string %s' %
-			self.getChildText(node), roll, nodefile, color))
-		return
-
-	# <main>
-	#	<timezone>
-	# </main>
-
-	def handle_main_timezone(self, node):
-		(roll, nodefile, color) = self.get_context(node)
-		self.ks['main'].append(('d-i time/zone string %s' %
-			self.getChildText(node), roll, nodefile, color))
-		return		
-	
-	# <package>
-
-	def handle_package(self, node):
-		rpm = self.getChildText(node).strip()
-		self.ks['packages'].append('d-i pkgsel/include string ' + rpm)
-
-	# <pre>
-	
-	def handle_pre(self, node):
-		attr = node.attributes
-		(roll, nodefile, color) = self.get_context(node)
-		# Parse the interpreter attribute
-		if attr.getNamedItem((None, 'interpreter')):
-			interpreter = '--interpreter ' + \
-				attr.getNamedItem((None, 'interpreter')).value
-		else:
-			interpreter = ''
-		# Parse any additional arguments to the interpreter
-		# or to the post section
-		if attr.getNamedItem((None, 'arg')):
-			arg = attr.getNamedItem((None, 'arg')).value
-		else:
-			arg = ''
-		list = []
-		list.append(string.strip(string.join([interpreter, arg])))
-		list.append(self.getChildText(node))
-		self.ks['pre'].append((list, roll, nodefile, color))
-
 	# <post>
-	
 	def handle_post(self, node):
+		"""Function works in an interesting way. On solaris the post
+		sections are executed in the installer environment rather than
+		in the installed environment. So the way we do it is to write
+		a script for every post section, with the correct interpreter
+		and execute it with a chroot command.
+		"""
+		# TODO remove return later
+		return
 		attr = node.attributes
-		(roll, nodefile, color) = self.get_context(node)
-		# Parse the interpreter attribute
-		if attr.getNamedItem((None, 'interpreter')):
-			interpreter = '--interpreter ' + \
-				attr.getNamedItem((None, 'interpreter')).value
+		# By default we always want to chroot, unless
+		# otherwise specified
+		if attr.getNamedItem((None, 'chroot')):
+			chroot = attr.getNamedItem((None, 'chroot')).value
 		else:
-			interpreter = ''
-		# Parse any additional arguments to the interpreter
-		# or to the post section
+			chroot = 'yes'
+
+		# By default, the interpreter is always /bin/sh, unless
+		# otherwise specified.
+		if attr.getNamedItem((None, 'interpreter')):
+			interpreter = attr.getNamedItem((None,
+				'interpreter')).value
+		else:
+			interpreter = '/bin/sh'
+
+		# The args that are supplied are for the command that
+		# you want to run, and not to the installer section.
 		if attr.getNamedItem((None, 'arg')):
 			arg = attr.getNamedItem((None, 'arg')).value
 		else:
 			arg = ''
-		list = []
-		# Add the interpreter and args to the %post line
-		list.append(string.strip(string.join([interpreter, arg])))
-		list.append(self.getChildText(node))
-		self.ks['post'].append((list, roll, nodefile, color))
-		
-	# <boot>
-	def handle_boot(self, node):
-		(roll, nodefile, color) = self.get_context(node)
-		attr = node.attributes
-		if attr.getNamedItem((None, 'order')):
-			order = attr.getNamedItem((None, 'order')).value
-		else:
-			order = 'pre'
 
-		self.ks['boot-%s' % order].append(
-			(self.getChildText(node), roll, nodefile, color))
+		list = []
+
+		if self.finish_section == 0:
+			list.append("d-i preseed/late_command string in-target")
+
+		if chroot == 'yes':
+			list.append("\tin-target cat > /a/tmp/post_section_%d << '__eof__'; \\"
+					% self.finish_section)
+			list.append("#!%s" % interpreter)
+			list.append(self.getChildText(node))
+			list.append("__eof__")
+			list.append("\tin-target chmod a+rx /a/tmp/post_section_%d; \\"
+					% self.finish_section)
+			list.append("\tin-target chroot /a /tmp/post_section_%d %s; \\"
+					% (self.finish_section, arg))
+		else:
+			if interpreter is not '/bin/sh':
+				list.append("\tin-target cat > /tmp/post_section_%d "
+					"<< '__eof__'; \\"
+					% self.finish_section)
+				list.append("#!%s" % interpreter)
+				list.append(self.getChildText(node))
+				list.append("__eof__")
+				list.append("\tin-target chmod a+rx /tmp/post_section_%d;"
+					% self.finish_section)
+				list.append("\t%s /tmp/post_section_%d;"
+					% (interpreter, self.finish_section))
+			
+			else:
+				list.append(self.getChildText(node))
+
+		self.finish_section = self.finish_section+1
+		self.ks['finish'] += list
 
 	def generate_main(self):
 		list = []
@@ -1197,89 +1109,19 @@ class Generator_ubuntu(Generator):
 		list += self.ks['packages']
 		return list
 
+	def generate_post(self):
+		list = []
+		list.append('')
+		list += self.ks['post']
+		return list
+
 	def generate_finish(self):
 		list = []
 		list.append('')
 		list += self.ks['finish']
+		print self.ks['finish']
 		return list
 
-	def generate_pre(self):
-		pre_list = []
-		pre_list.append('')
-
-		for list in self.ks['pre']:
-			(args, text) = list[0][0], list[0][1]
-			roll = list[1]
-			nodefile = list[2]
-			color = list[3]
-			pre_list.append(('%%pre --log=/tmp/ks-pre.log %s' %
-				args, roll, nodefile, color))
-			pre_list.append((text + '\n',roll, nodefile, color))
-			pre_list.append(('%end'))
-			
-		return pre_list
-
-	def generate_post(self):
-		post_list = []
-		post_list.append(('', None, None))
-
-		for list in self.ks['post']:
-			(args, text) = list[0][0], list[0][1]
-			roll = list[1]
-			nodefile = list[2]
-			color = list[3]
-			log = self.log
-			try:
-				i = args.index('--nochroot')
-				if i >= 0:
-					log = '/mnt/sysimage/%s' % self.log
-			except:
-				pass
-			post_list.append(('%%post --log=%s %s' %
-				(log, args), roll, nodefile, color))
-			post_list.append((text + '\n',roll, nodefile, color))
-			post_list.append(('%end'))
-			
-		return post_list
-
-
-	def generate_boot(self):
-		list = []
-		list.append('')
-		list.append('%%post --log=%s' % self.log)
-		
-		# Boot PRE
-		#	- check in/out all modified files
-		#	- write the <boot order="pre"> text
-		
-		list.append('')
-		list.append("cat >> /etc/sysconfig/stack-pre << '__EOF__'")
-
-		for (file, (owner, perms)) in self.rcsFiles.items():
-			s = self.rcsEnd(file, owner, perms)
-			list.append(s)
-
-		for l in self.ks['boot-pre']:
-			list.append(l)
-
-		list.append('__EOF__')
-
-		# Boot POST
-		#	- write the <boot order="post"> text
-		
-		list.append('')
-		list.append("cat >> /etc/sysconfig/stack-post << '__EOF__'")
-
-		for l in self.ks['boot-post']:
-			list.append(l)
-
-		list.append('__EOF__')
-		list.append('')
-
-		list.append('%end')
-		
-		return list
-		
 class MainNodeFilter_sunos(NodeFilter):
 	"""
 	This class either accepts or reject tags

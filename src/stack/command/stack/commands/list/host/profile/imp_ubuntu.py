@@ -44,16 +44,16 @@ class Implementation(stack.commands.Implementation):
 		
 		self.generator.parse(xml)
 		self.owner.addOutput(host, '<profile lang="preseed.cfg">\n')
-		self.get_section = ['main', 'packages', 'finish']
+		self.get_section = ['main', 'packages', 'post', 'finish']
 		
 		for section in self.get_section:
 			list = []
 			list = self.generator.generate(section)
-			self.owner.addOutput(host, "<section name=\"%s\">" % section)
-			self.owner.addOutput(host, "<![CDATA[")
+			#self.owner.addOutput(host, "<section name=\"%s\">" % section)
+			#self.owner.addOutput(host, "<![CDATA[")
 			self.owner.addOutput(host, "# %s"  % section)
 			for line in list:
 				self.owner.addOutput(host, line.rstrip())
-			self.owner.addOutput(host, "]]>")
-			self.owner.addOutput(host, "</section>")
+			#self.owner.addOutput(host, "]]>")
+			#self.owner.addOutput(host, "</section>")
 		self.owner.addOutput(host, '</profile>\n')
