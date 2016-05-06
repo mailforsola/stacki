@@ -19,11 +19,11 @@ All rights reserved. Rocks(r) v5.4 www.rocksclusters.org
 
 <main>
 <passwd>root-login boolean true</passwd>
-<passwd>root-password-crypted password &Kickstart_PrivateMD5RootPassword; [MD5 hash]</passwd>
+<passwd>root-password-crypted password &Kickstart_PrivateRootPassword;</passwd>
 <passwd>make-user boolean true</passwd>
 <passwd>user-fullname string Ubuntu User</passwd>
 <passwd>username string ubuntu</passwd>
-<passwd>user-password-crypted password &Kickstart_PrivateMD5RootPassword; [MD5 hash]</passwd>
+<passwd>user-password-crypted password &Kickstart_PrivateRootPassword;</passwd>
 <passwd>user-uid string</passwd>
 </main>
 </kickstart> 
