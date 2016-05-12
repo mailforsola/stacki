@@ -998,14 +998,18 @@ class Generator_ubuntu(Generator):
 		txt = self.getChildText(node)
 		commands = txt.split(";")
 		
-		for command in commands:
+		for (idx, command) in enumerate(commands):
 			command = command.strip()
 			if not command:
 				continue
+			
 			if not self.ks['post']:
-				self.ks['post'].append('d-i preseed/%s string in-target %s;\n' % (node.nodeName.strip(), command))
+				self.ks['post'].append('d-i preseed/%s string %s;\\' % (node.nodeName.strip(), command))
+			elif idx < len(commands) - 2:
+				self.ks['post'].append('%s;\\' % command)
 			else:
-				self.ks['post'].append('in-target %s;\n' % command)
+				self.ks['post'].append('%s' % command)
+			
 
 	def handle_grub_installer(self, node):
 		self.ks['finish'].append('d-i grub-installer/%s' % self.getChildText(node))
@@ -1119,7 +1123,6 @@ class Generator_ubuntu(Generator):
 		list = []
 		list.append('')
 		list += self.ks['finish']
-		print self.ks['finish']
 		return list
 
 class MainNodeFilter_sunos(NodeFilter):

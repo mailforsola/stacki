@@ -18,10 +18,10 @@ All rights reserved. Rocks(r) v5.4 www.rocksclusters.org
 
 
 <late_command>
-/usr/bin/curl -s -k -o /dev/null https://&Kickstart_PrivateAddress;/install/sbin/public/setPxeboot.cgi?params='\{"action":"os"\}';
-mkdir -p /root/.ssh;
-chmod 600 /root/.ssh/authorized_keys;
-chmod 700 /root/.ssh;
-<!--/bin/echo -ne <eval shell="sh">cat /root/.ssh/id_rsa.pub</eval> &gt;&gt;/root/.ssh/authorized_keys;-->
+in-target /usr/bin/curl -s -k -o /target/dev/null/ https://&Kickstart_PrivateAddress;/install/sbin/public/setPxeboot.cgi?params='\{"action":"os"\}';
+in-target sed -i 's/PermitRootLogin.*/PermitRootLogin yes/g' /etc/ssh/sshd_config;
+in-target sed -i 's/#AuthorizedKeysFile.*/AuthorizedKeysFile %h\/\.ssh\/authorized_keys/g' /etc/ssh/sshd_config;
+/bin/mkdir -p /target/root/.ssh;
+/bin/echo -ne "<eval shell="sh">awk 'NR > 1 { print prev } { prev=$0 } END { ORS=""; print }' /root/.ssh/id_rsa.pub</eval>" &gt;&gt;/target/root/.ssh/authorized_keys;
 </late_command>
 </kickstart> 
