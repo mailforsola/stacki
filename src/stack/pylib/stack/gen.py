@@ -884,6 +884,7 @@ class MainNodeFilter_ubuntu(NodeFilter):
 			'partman-auto',
 			'partman-lvm',
 			'partman-auto-lvm',
+			'partman-md',
 			'pkgsel',
 			'tasksel',
 			'timezone',
