@@ -24,8 +24,6 @@ foundation-py-pexpect
 foundation-py-PIL
 foundation-py-POW
 foundation-py-pycairo
-foundation-py-pygobject
-foundation-py-pygtk
 foundation-py-requests
 foundation-python
 foundation-python-daemon

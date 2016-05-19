@@ -521,6 +521,8 @@ class RollInfoFile(File,
 		fin.close()
 		
 	def startElement(self, name, attrs):
+                if str(name) == 'pallet':
+                        name = 'roll'
 		self.attrs[str(name)] = {}
 		for (attrName, attrVal) in attrs.items():
 			self.attrs[str(name)][str(attrName)] = str(attrVal)
@@ -595,16 +597,18 @@ class RollInfoFile(File,
 		return int(self.attrs['iso']['addcomps'])
 		
 	def hasRolls(self):
-		if self.attrs['rpm']['rolls'] != '0':
-			return 1
-		else:
-			return 0
+                try:
+                        if self.attrs['rpm']['rolls'] != '0':
+                                return True
+                except:
+                        pass
+                return False
 		
 	def hasRPMS(self):
-		return int(self.attrs['rpm']['bin'])
+                return True
 		
 	def hasSRPMS(self):
-		return int(self.attrs['rpm']['src'])
+                return False
 		
 
 class Tree:

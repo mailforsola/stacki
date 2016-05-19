@@ -99,14 +99,13 @@ __ROLLS_MK = yes
 # Initialize some variables for pallet building
 # --------------------------------------------------------------------- #
 
-ROLLS.API	= 6.0.2
-
+ROLLS.API		= 7
 BOOTABLE		= 0
 ADDCOMPS		= 0
 INCLUDE_PROFILES	= 1
 INCLUDE_GRAPHS  	= 1
 INCLUDE_RPMS		= 1
-ISOSIZE			= 600
+ISOSIZE			= 0
 
 TAREXCLUDES	= --exclude src --exclude 'build-*'
 
@@ -126,7 +125,7 @@ endif
 export ROLL
 
 include $(STACKBUILD)/etc/Rules.mk
-include $(ROLLSBUILD)/etc/roll-profile.mk
+#include $(ROLLSBUILD)/etc/roll-profile.mk
 
 .PHONY: profile
 profile: rpm
@@ -146,20 +145,20 @@ endif
 # --------------------------------------------------------------------- #
 
 .PHONY: roll
-roll: $(TARGET_PKG)s roll-$(ROLL).xml 
+roll: $(TARGET_PKG)s pallet-$(ROLL).xml 
 	(								\
 		cd build-$(ROLL)-$(STACK);				\
 		rm -rf disk*;						\
 		env GNUPGHOME=$(STACKBUILD.ABSOLUTE)/../.gnupg		\
 			Kickstart_Lang=$(KICKSTART_LANG)		\
 			Kickstart_Langsupport=$(KICKSTART_LANGSUPPORT)	\
-			/opt/stack/bin/stack create pallet ../roll-$(ROLL).xml;\
+			/opt/stack/bin/stack create pallet ../pallet-$(ROLL).xml;\
 	)
 
 .PHONY: reroll
 reroll: roll
 
-pretar:: roll-$(ROLL).xml 
+pretar:: pallet-$(ROLL).xml 
 
 .PHONY: $(TARGET_PKG)s
 $(TARGET_PKG)s: 
@@ -183,8 +182,8 @@ else
 ROLLS.OS=$(OS)
 endif
 
-roll-$(ROLL).xml:
-	@echo "<roll name=\"$(ROLL)\" interface=\"$(ROLLS.API)\">" > $@
+pallet-$(ROLL).xml:
+	@echo "<pallet name=\"$(ROLL)\" interface=\"$(ROLLS.API)\">" > $@
 	@echo "<timestamp time=\"$(TIME)\""\
 		"date=\"$(DATE)\" tz=\"$(TZ)\"/>" >> $@	
 	@echo "<color edge=\"$(COLOR)\" node=\"$(COLOR)\"/>" >> $@
@@ -192,8 +191,6 @@ roll-$(ROLL).xml:
 		"arch=\"$(ARCH)\" os=\"$(ROLLS.OS)\"/>" >> $@
 	@echo "<iso maxsize=\"$(ISOSIZE)\" addcomps=\"$(ADDCOMPS)\" bootable=\"$(BOOTABLE)\""\
 		"mkisofs=\"$(MKISOFSFLAGS)\"/>" >> $@
-	@echo "<$(TARGET_PKG) rolls=\"$(WITHROLLS)\""\
-		"bin=\"$(INCLUDE_RPMS)\" src=\"0\"/>" >> $@
 	@echo "<author name=\"$(USER)\""\
 		"host=\"$(shell /bin/hostname)\"/>" >> $@
 	@echo "<gitstatus><![CDATA["			>> $@
@@ -202,13 +199,10 @@ roll-$(ROLL).xml:
 	@echo "<gitlog>"				>> $@
 	-git log | awk '/^commit / { print $$2; }'	>> $@
 	@echo "</gitlog>"				>> $@
-	@echo "</roll>" >> $@
+	@echo "</pallet>" >> $@
 
 clean::
-	rm -f roll-$(ROLL).xml
-
-
-clean::
+	rm -f pallet-$(ROLL).xml
 	rm -rf anaconda anaconda-runtime
 	rm -rf rpmdb
 

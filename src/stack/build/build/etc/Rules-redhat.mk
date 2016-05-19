@@ -119,13 +119,13 @@ RPM.FILESLIST = /tmp/$(NAME)-fileslist
 # --------------------------------------------------------------------- #
 # Roll kickstart profiles building need a few special settings
 # --------------------------------------------------------------------- #
-ifdef __ROLLS_MK
-RPM.PACKAGE = kickstart
-RPM.ARCH = noarch
-RPM.SUMMARY = StackIQ $(ROLL) Roll
-RPM.DESCRIPTION = XML files for the StackIQ $(ROLL) Roll
-RPM.PREFIX = $(PROFILE_DIR)
-endif
+#ifdef __ROLLS_MK
+#RPM.PACKAGE = kickstart
+#RPM.ARCH = noarch
+#RPM.SUMMARY = StackIQ $(ROLL) Roll
+#RPM.DESCRIPTION = XML files for the StackIQ $(ROLL) Roll
+#RPM.PREFIX = $(PROFILE_DIR)
+#endif
 
 ifndef ROLL.MEMBERSHIP
 ROLL.MEMBERSHIP = $(ROLL)
@@ -252,7 +252,9 @@ else
 RPM.NAME ?= $(NAME)-$(VERSION)-$(RELEASE).$(RPM.ARCH).rpm
 endif
 
+ifndef __ROLLS_MK
 RPM.TARGET=$(REDHAT.ROOT)/RPMS/$(RPM.ARCH)/$(RPM.NAME)
+endif
 
 # force depend.mk to be computed everytime
 .PHONY: .buildenv-$(ROLL)/depend.mk
