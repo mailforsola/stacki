@@ -264,12 +264,12 @@ if 'boss' in args:
 	# assume the user wants to use the contents of the DVD
 	if os.path.exists('/tmp/rolls.xml'):
 		g.parse('/tmp/rolls.xml')
-		if not g.rolls():
+		if not g.rolls:
 			gen_dvd_rolls_xml(outfile='/tmp/rolls.xml')
 			g.parse('/tmp/rolls.xml')
 	elif os.path.exists('/tmp/pallets.xml'):
 		g.parse('/tmp/pallets.xml')
-		if not g.rolls():
+		if not g.rolls:
 			gen_dvd_rolls_xml(outfile='/tmp/pallets.xml')
 			g.parse('/tmp/pallets.xml')
 
