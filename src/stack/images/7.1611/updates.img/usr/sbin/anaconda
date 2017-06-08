@@ -38,6 +38,30 @@ def stack_debug():
 
 stack_debug()
 
+def gen_dvd_rolls_xml(search_path = '/mnt/cdrom/', outfile = '/tmp/rolls.xml'):
+	""" find all pallets on the install DVD and create a rolls.xml file """
+	path_prefix = search_path
+	# grab only the portion of the path after the prefix for any path that has a repodata folder
+	repos = [path[len(path_prefix):] for path, dirs, files in os.walk(path_prefix) if 'repodata' in dirs]
+	url = 'http://127.0.0.1' + path_prefix
+	rolls_lines = []
+	rolls_lines.append('<rolls>')
+	for repo in repos:
+		name, version, release, repo_os, arch = repo.split('/')
+		rolls_lines.append('\n\t<roll ')
+		rolls_lines.append('\n\tarch="{0}"'.format(arch))
+		rolls_lines.append('\n\tdiskid="{0}"'.format('stackios disk 1'))
+		rolls_lines.append('\n\tname="{0}"'.format(name))
+		rolls_lines.append('\n\trelease="{0}"'.format(release))
+		rolls_lines.append('\n\turl="{0}"'.format(url))
+		rolls_lines.append('\n\tversion="{0}"'.format(version))
+		rolls_lines.append('\n\t/>')
+	rolls_lines.append('\n</rolls>')
+
+	with open(outfile, 'w') as rollsfile:
+		rollsfile.writelines(rolls_lines)
+
+
 anaconda_real_cmd = ['/usr/sbin/anaconda.real']
 
 #
@@ -236,10 +260,18 @@ if 'boss' in args:
 
 	g = stack.roll.Generator()
 
+	# if there exists a rolls/pallets.xml, but it's empty
+	# assume the user wants to use the contents of the DVD
 	if os.path.exists('/tmp/rolls.xml'):
 		g.parse('/tmp/rolls.xml')
+		if not g.rolls():
+			gen_dvd_rolls_xml(outfile='/tmp/rolls.xml')
+			g.parse('/tmp/rolls.xml')
 	elif os.path.exists('/tmp/pallets.xml'):
 		g.parse('/tmp/pallets.xml')
+		if not g.rolls():
+			gen_dvd_rolls_xml(outfile='/tmp/pallets.xml')
+			g.parse('/tmp/pallets.xml')
 
 	repo_file = open('/etc/anaconda.repos.d/stacki.repo', 'w')
 
