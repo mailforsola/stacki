@@ -165,10 +165,20 @@ if 'boss' in args:
 	#
 	# determine if this is a light's out install
 	#
+	import stack.roll
+
+	g = stack.roll.Generator()
 	if os.path.exists('/mnt/cdrom/tmp/rolls.xml'):
 		shutil.copyfile('/mnt/cdrom/tmp/rolls.xml', '/tmp/rolls.xml')
+		g.parse('/tmp/rolls.xml')
+		if not g.rolls:
+			gen_dvd_rolls_xml(outfile='/tmp/rolls.xml')
+			g.parse('/tmp/rolls.xml')
 	if os.path.exists('/mnt/cdrom/tmp/pallets.xml'):
 		shutil.copyfile('/mnt/cdrom/tmp/pallets.xml', '/tmp/pallets.xml')
+		if not g.rolls:
+			gen_dvd_rolls_xml(outfile='/tmp/pallets.xml')
+			g.parse('/tmp/pallets.xml')
 	if os.path.exists('/mnt/cdrom/tmp/site.attrs'):
 		shutil.copyfile('/mnt/cdrom/tmp/site.attrs', '/tmp/site.attrs')
 
@@ -256,7 +266,7 @@ if 'boss' in args:
 	#
 	# now build a new repo file with all the selected pallets
 	#
-	import stack.roll
+	#import stack.roll
 
 	g = stack.roll.Generator()
 
@@ -264,14 +274,8 @@ if 'boss' in args:
 	# assume the user wants to use the contents of the DVD
 	if os.path.exists('/tmp/rolls.xml'):
 		g.parse('/tmp/rolls.xml')
-		if not g.rolls:
-			gen_dvd_rolls_xml(outfile='/tmp/rolls.xml')
-			g.parse('/tmp/rolls.xml')
 	elif os.path.exists('/tmp/pallets.xml'):
 		g.parse('/tmp/pallets.xml')
-		if not g.rolls:
-			gen_dvd_rolls_xml(outfile='/tmp/pallets.xml')
-			g.parse('/tmp/pallets.xml')
 
 	repo_file = open('/etc/anaconda.repos.d/stacki.repo', 'w')
 
