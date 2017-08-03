@@ -213,6 +213,7 @@ class Generator(stack.gen.Generator):
 
                 elif self.getProfileType() == 'shell':
 
+			print('handle_stack_post: redhat')
                         section = self.getChildText(node)
                         tmp     = tempfile.mktemp()
 

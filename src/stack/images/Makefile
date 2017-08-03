@@ -41,6 +41,8 @@
 
 ROLLROOT	= ../../..
 
+ROLL.MEMBERSHIP = None
+
 include $(STACKBUILD)/etc/CCRules.mk
 -include $(RELEASE).mk
 -include $(RELEASE)-$(ARCH).mk

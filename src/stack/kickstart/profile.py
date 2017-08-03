@@ -204,7 +204,7 @@ class Client:
 		m = json.dumps(msg)
 
 		tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		tx.sendto("%s" % m, ('10.1.19.15', 5000))
+		tx.sendto("%s" % m, ('localhost', 5000))
 		tx.close()
         
 ##

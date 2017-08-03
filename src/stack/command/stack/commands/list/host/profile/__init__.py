@@ -166,6 +166,11 @@ class Command(stack.commands.list.host.command):
 	all the known hosts is listed.
 	</arg>
 
+	<param optional='1' type='string' name='os'>
+	The name of the OS in which to generate the output. Examples are:
+	'redhat' and 'sles'.
+	</param>
+
 	<example cmd='list host profile backend-0-0'>
 	Generates a Kickstart profile for backend-0-0.
 	</example>
@@ -180,20 +185,22 @@ class Command(stack.commands.list.host.command):
 
 	def run(self, params, args):
 
-		(profile, chapter) = self.fillParams([
+		(profile, osname, chapter) = self.fillParams([
                         ('profile', 'native'),
+                        ('os', None),
                         ('chapter', None) ])
 
 		xmlinput  = ''
-                osname    = None
 
 		# If the command is not on a TTY, then try to read XML input.
 
 		if not sys.stdin.isatty():
 			for line in sys.stdin.readlines():
-                                if line.find('<stack:profile stack:os="') == 0:
-                                        osname = line.split()[1][9:].strip('"')
+				if not osname:
+					if line.find('<stack:profile stack:os="') == 0:
+						osname = line.split()[1][9:].strip('"')
 				xmlinput += line
+
                 if xmlinput and not osname:
                         raise CommandError(self, "OS name not specified in profile")
 

@@ -138,11 +138,11 @@ install::
 		$(MAKE) DESTDIR=$(ROOT) install;		\
 	)
 	rm -rf $(ROOT)/$(PKGROOT)/share/mysql-test
-	mkdir -p $(ROOT)/etc/rc.d/init.d/
+	mkdir -p $(ROOT)/etc/init.d/
 	(								\
 		cd mariadb-$(VERSION);					\
 		$(INSTALL) -m 0744 support-files/mysql.server		\
-			$(ROOT)/etc/rc.d/init.d/$(NAME);		\
+			$(ROOT)/etc/init.d/$(NAME);		\
 	)
 	echo "#!/bin/bash"				>  $(ROOT)/$(INSTALLDB)
 	echo "$(PKGROOT)/bin/mysql_install_db \\" 	>> $(ROOT)/$(INSTALLDB)
